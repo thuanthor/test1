@@ -83,7 +83,7 @@ addEventListener('unhandledrejection',function(e){showErr((e.reason&&e.reason.me
 <body>
 <div id="ar"></div>
 <div id="start"><h1>AR Cây nhị phân 3D</h1>
-<p>Đưa camera vào hình cây nhị phân (in hoặc vẽ tay, nét tối trên nền sáng). Web tự nhận diện nút – đường nối, dựng cây 3D để bạn duyệt, thêm, xóa, tìm kiếm, kéo từng nút, làm trắc nghiệm và chơi game trên chính cây đó.</p>
+<p>Đưa camera vào hình cây nhị phân (in hoặc vẽ tay trên giấy sáng; nét và nút màu đen, xanh, đỏ… đều được, nút tô đặc hay vòng rỗng đều được). Web tự nhận diện nút – đường nối, dựng cây 3D để bạn duyệt, thêm, xóa, tìm kiếm, kéo từng nút, làm trắc nghiệm và chơi game trên chính cây đó.</p>
 <p style="font-size:13px">💡 Mẹo quét nét: đủ sáng · đưa máy cách giấy ~30–40cm · giữ máy yên 1–2 giây · vẽ nét đậm, khép kín vòng tròn · đặt hình cây vào <b>KHUNG VÀNG</b> (kéo khung để dời, kéo chấm góc để đổi cỡ). Ảnh mờ thì bấm <b>📸 Chụp quét</b> hoặc <b>🖼 Tải ảnh</b> (chụp bằng camera gốc cho nét).</p><p id="stt">⏳ Đang khởi động...</p><button id="bAR" disabled>Bắt đầu quét AR</button><button id="bDemo" disabled>⌨ Không cần camera (nhập cây bằng chuỗi)</button></div>
 <div id="top" class="gl"><span>TRẠNG THÁI AR: <b id="st"></b></span><span class="sep">|</span><div id="modes" style="display:flex;gap:4px"><button data-mode="kham" title="Khám phá: xem thông số, thông tin nút, thêm / xóa / sửa nút">🔎<span class="tx"> Khám phá</span></button><button data-mode="duyet" title="Duyệt cây: xem duyệt trước, giữa, sau, ngược kèm code">🚶<span class="tx"> Duyệt cây</span></button><button data-mode="choi" title="Trò chơi: duyệt đúng thứ tự, săn nút, trắc nghiệm">🎮<span class="tx"> Trò chơi</span></button></div><b id="mt" hidden></b><span class="sp"></span>
 <select id="vw" title="Cách hiển thị: cây 3D hoặc mảng 1 chiều T[]"><option value="tree">Cây 3D AR</option><option value="arr">Mảng 1 chiều T[]</option></select>
@@ -379,8 +379,12 @@ $('#gm').addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(!b
 //#AN-START
 // ===== NHẬN DIỆN HÌNH CÂY (JS thuần): ngưỡng thích nghi → "lỗ" hình elip = nút → dò đường nối → chọn cây lớn nhất → dựng cha–con =====
 // all=true (quét trong KHUNG VÀNG): lấy mọi nút trong khung, thiếu/thừa đường nối thì tự nối (infer)
-function analyze(gray,w,h,ds=[1,2,4],los=[0,1],all){let best=null,bs=-1;for(const lo of los){for(const d of ds){const r=an(gray,w,h,d,lo,all),sc=(r.tr.ok?1e3:0)+r.C.length;if(sc>bs){bs=sc;best=r;r.dd=d;r.lo=lo}}if(best&&best.tr.ok)break}return best}   // lo=1: chế độ ảnh yếu (tương phản thấp/nhiễu) — làm mịn 3×3 + ngưỡng mực nới
-function an(gray,w,h,dd,lo,all){
+function analyze(gray,w,h,ds=[1,2,4],los=[0,1],all,col,fs){let best=null,bs=-1;   // fs: 0 = chỉ thuật toán "lỗ rỗng", 1 = chỉ thuật toán nút đặc/màu, bỏ trống = thử lần lượt
+  const T=(r,d,lo,sm)=>{const sc=(r.tr.ok?1e3:0)+r.C.length;if(sc>bs){bs=sc;best=r;r.dd=d;r.lo=lo;r.sm=sm}};
+  if(fs!==1){for(const lo of los){for(const d of ds)T(an(gray,w,h,d,lo,all),d,lo,0);if(best&&best.tr.ok)break}}      // lo=1: chế độ ảnh yếu (tương phản thấp/nhiễu)
+  if(col&&fs!==0&&!(best&&best.tr.ok)){const d=ds.includes(2)?2:ds[0];for(const lo of los){T(an(gray,w,h,d,lo,all,col,1),d,lo,1);if(best&&best.tr.ok)break}}   // nút tô đặc / nét màu (đen, xanh, đỏ, vàng…)
+  return best}
+function an(gray,w,h,dd,lo,all,col,sm){
   const N=w*h,W1=w+1,I=new Float64Array(W1*(h+1));
   for(let y=0;y<h;y++){let s=0;for(let x=0;x<w;x++){s+=gray[y*w+x];I[(y+1)*W1+x+1]=I[y*W1+x+1]+s}}
   if(lo){const g2=new Uint8Array(N);for(let y=0;y<h;y++){const y0=Math.max(0,y-1),y1=Math.min(h,y+2);for(let x=0;x<w;x++){const x0=Math.max(0,x-1),x1=Math.min(w,x+2);g2[y*w+x]=(I[y1*W1+x1]-I[y0*W1+x1]-I[y1*W1+x0]+I[y0*W1+x0])/((x1-x0)*(y1-y0))}}gray=g2}
@@ -389,7 +393,7 @@ function an(gray,w,h,dd,lo,all){
     for(let x=0;x<w;x++){const x0=Math.max(0,x-k),x1=Math.min(w,x+k+1),g=gray[y*w+x],
       m=(I[y1*W1+x1]-I[y0*W1+x1]-I[y1*W1+x0]+I[y0*W1+x0])/((x1-x0)*(y1-y0));
       ink[y*w+x]=lo?(g<m-6&&g<m*.9?1:0):(g<m-14&&g<m*.72?1:0)}}
-  const t=new Uint8Array(N),dl=new Uint8Array(N);                      // giãn nét (dd px) để nối chỗ hở của nét vẽ tay
+  if(sm&&col)colInk(ink,gray,w,h,col,lo);const t=new Uint8Array(N),dl=new Uint8Array(N);                      // giãn nét (dd px) để nối chỗ hở của nét vẽ tay
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){let v=0;for(let j=-dd;j<=dd&&!v;j++){const X=x+j;if(X>=0&&X<w&&ink[y*w+X])v=1}t[y*w+x]=v}
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){let v=0;for(let j=-dd;j<=dd&&!v;j++){const Y=y+j;if(Y>=0&&Y<h&&t[Y*w+x])v=1}dl[y*w+x]=v}
   const seen=new Uint8Array(N),q=new Int32Array(N);let qn=0,cs=[];     // vùng nền kín (không chạm biên) có dạng elip = nút (máy nghiêng vẫn nhận)
@@ -413,7 +417,7 @@ function an(gray,w,h,dd,lo,all){
     const mean=mr.reduce((u,v)=>u+v)/32,sd=Math.sqrt(mr.reduce((u,v)=>u+(v-mean)**2,0)/32)/mean,fill=area/(Math.PI*A*B);
     if(sd>.12||fill<.35||fill>1.25)continue;
     cs.push({x:cx+mx,y:cy+my,r:Math.max(A,B)+1.5})}
-  cs.sort((a,b)=>b.r-a.r);let C=[];                                    // bỏ lỗ nằm trong nút khác (ruột số 0,6,8,9…)
+  if(sm&&col)solidNodes(dl,w,h,dd,cs);cs.sort((a,b)=>b.r-a.r);let C=[];                                    // bỏ lỗ nằm trong nút khác (ruột số 0,6,8,9…)
   for(const c of cs)if(!C.some(b=>Math.hypot(b.x-c.x,b.y-c.y)<b.r))C.push(c);
   if(C.length>2){const rs=C.map(c=>c.r).sort((a,b)=>a-b),md=rs[rs.length>>1];C=C.filter(c=>c.r>md*.55&&c.r<md*1.8)}
   C.sort((a,b)=>a.y-b.y||a.x-b.x);
@@ -466,13 +470,66 @@ function mkTree(C,ed,inf){
   return{ok:true,root,n,sig:sg(root),info:`Nhận ra CÂY NHỊ PHÂN: ${n} nút · cao ${ht} · ${lv} lá`+(full?' · đầy đủ':'')+(comp?' · hoàn chỉnh':'')+(inf?' · đã tự nối đường':'')};
 }
 
+// ===== MÀU BẤT KỲ: "mực" = điểm khác màu giấy xung quanh (không chỉ tối hơn) → nét/nút đen, xanh, đỏ, vàng… đều thành mực =====
+function colInk(ink,gray,w,h,col,lo){const N=w*h,W1=w+1,K=Math.max(24,w>>2),T=lo?70:110,H=new Int32Array(256);
+  for(let i=0;i<N;i++)H[gray[i]]++;let c=0,v7=255;for(let i=0;i<256;i++){c+=H[i];if(c>=N*.7){v7=i;break}}
+  const paper=new Uint8Array(N),P0=new Float64Array(W1*(h+1)),P1=new Float64Array(W1*(h+1)),P2=new Float64Array(W1*(h+1)),P3=new Float64Array(W1*(h+1));
+  for(let i=0;i<N;i++)paper[i]=gray[i]>=v7*.75?1:0;                       // lần 1: giấy ≈ phần sáng; lần 2: giấy = mọi điểm chưa bị coi là mực
+  for(let it=0;it<2;it++){
+    for(let y=0;y<h;y++){let a=0,b=0,g=0,n=0;for(let x=0;x<w;x++){const i=y*w+x,q=i*4;if(paper[i]){a+=col[q];b+=col[q+1];g+=col[q+2];n++}const o=(y+1)*W1+x+1,u=y*W1+x+1;P0[o]=P0[u]+a;P1[o]=P1[u]+b;P2[o]=P2[u]+g;P3[o]=P3[u]+n}}
+    const L=(h+1)*W1-1,gn=P3[L]||1,gr=P0[L]/gn,gg=P1[L]/gn,gb=P2[L]/gn;
+    for(let y=0;y<h;y++){const y0=Math.max(0,y-K),y1=Math.min(h,y+K+1);for(let x=0;x<w;x++){const x0=Math.max(0,x-K),x1=Math.min(w,x+K+1),i=y*w+x,q=i*4,
+      A=y1*W1+x1,B=y0*W1+x1,C=y1*W1+x0,D=y0*W1+x0,n=P3[A]-P3[B]-P3[C]+P3[D];let r=gr,g=gg,b=gb;
+      if(n>25){r=(P0[A]-P0[B]-P0[C]+P0[D])/n;g=(P1[A]-P1[B]-P1[C]+P1[D])/n;b=(P2[A]-P2[B]-P2[C]+P2[D])/n}
+      ink[i]=Math.abs(col[q]-r)+Math.abs(col[q+1]-g)+Math.abs(col[q+2]-b)>T?1:0}}
+    if(!it)for(let i=0;i<N;i++)paper[i]=ink[i]?0:1}}
+function fitC(q,st,tl,w,sx,sy,tol){const area=tl-st,cx=sx/area,cy=sy/area,fx=new Float64Array(32),fy=new Float64Array(32),fb=new Float64Array(32);
+  for(let j=st;j<tl;j++){const i=q[j],dx=i%w-cx,dy=((i/w)|0)-cy,s=((Math.atan2(dy,dx)/6.2832+1)*32|0)%32,d=dx*dx+dy*dy;if(d>fb[s]){fb[s]=d;fx[s]=dx;fy[s]=dy}}
+  if(fb.some(v=>v<=0))return null;
+  let mx=0,my=0;for(let s=0;s<32;s++){mx+=fx[s];my+=fy[s]}mx/=32;my/=32;let xx=0,yy=0,xy=0;
+  for(let s=0;s<32;s++){const a=fx[s]-mx,b=fy[s]-my;xx+=a*a;yy+=b*b;xy+=a*b}xx/=32;yy/=32;xy/=32;
+  const tr=xx+yy,sq=Math.sqrt(Math.max(0,tr*tr/4-(xx*yy-xy*xy))),l1=tr/2+sq,l2=tr/2-sq;if(l2<=0)return null;
+  const A=Math.SQRT2*Math.sqrt(l1),B=Math.SQRT2*Math.sqrt(l2);if(A/B>2.4||B<3)return null;
+  const th=.5*Math.atan2(2*xy,xx-yy),co=Math.cos(th),si=Math.sin(th),mr=new Float64Array(32);
+  for(let s=0;s<32;s++){const a=fx[s]-mx,b=fy[s]-my;mr[s]=Math.hypot((a*co+b*si)/A,(-a*si+b*co)/B)}
+  const mean=mr.reduce((u,v)=>u+v)/32,sd=Math.sqrt(mr.reduce((u,v)=>u+(v-mean)**2,0)/32)/mean,fill=area/(Math.PI*A*B);
+  if(sd>tol||fill<.35||fill>1.25)return null;
+  return{x:cx+mx,y:cy+my,r:Math.max(A,B)+1.5}}
+function solidNodes(dl,w,h,dd,cs){        // nút tô đặc hoặc vòng kín: lấp ruột → "mở" hình để cắt bỏ đường nối → còn lại các khối tròn = nút
+  const N=w*h,S=new Uint8Array(dl),seen=new Uint8Array(N),q=new Int32Array(N);let qn=0;
+  for(let s0=0;s0<N;s0++){if(dl[s0]||seen[s0])continue;                    // vùng nền kín (không chạm biên) nhỏ = ruột nút → lấp
+    const st=qn;let hd=qn,tl=qn,bd=0;q[tl++]=s0;seen[s0]=1;
+    while(hd<tl){const i=q[hd++],x=i%w,y=(i/w)|0;if(!x||!y||x==w-1||y==h-1)bd=1;
+      if(x>0&&!dl[i-1]&&!seen[i-1]){seen[i-1]=1;q[tl++]=i-1}
+      if(x<w-1&&!dl[i+1]&&!seen[i+1]){seen[i+1]=1;q[tl++]=i+1}
+      if(y>0&&!dl[i-w]&&!seen[i-w]){seen[i-w]=1;q[tl++]=i-w}
+      if(y<h-1&&!dl[i+w]&&!seen[i+w]){seen[i+w]=1;q[tl++]=i+w}}
+    qn=tl;if(!bd&&tl-st<N/6)for(let j=st;j<tl;j++)S[q[j]]=1}
+  const W1=w+1,I=new Int32Array(W1*(h+1));
+  for(let y=0;y<h;y++){let s=0;for(let x=0;x<w;x++){s+=S[y*w+x];I[(y+1)*W1+x+1]=I[y*W1+x+1]+s}}
+  const e=Math.max(4,(w/110|0)+dd),side=(2*e+1)*(2*e+1),core=new Uint8Array(N);let nc=0;
+  for(let y=e;y<h-e;y++)for(let x=e;x<w-e;x++){const s=I[(y+e+1)*W1+x+e+1]-I[(y-e)*W1+x+e+1]-I[(y+e+1)*W1+x-e]+I[(y-e)*W1+x-e];if(s==side){core[y*w+x]=1;nc++}}
+  if(!nc)return;
+  const t=new Uint8Array(N),op=new Uint8Array(N);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){let v=0;for(let j=-e;j<=e&&!v;j++){const X=x+j;if(X>=0&&X<w&&core[y*w+X])v=1}t[y*w+x]=v}
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){let v=0;for(let j=-e;j<=e&&!v;j++){const Y=y+j;if(Y>=0&&Y<h&&t[Y*w+x])v=1}op[y*w+x]=v&S[y*w+x]}
+  seen.fill(0);qn=0;
+  for(let s0=0;s0<N;s0++){if(!op[s0]||seen[s0])continue;
+    const st=qn;let hd=qn,tl=qn,bd=0,sx=0,sy=0;q[tl++]=s0;seen[s0]=1;
+    while(hd<tl){const i=q[hd++],x=i%w,y=(i/w)|0;sx+=x;sy+=y;if(!x||!y||x==w-1||y==h-1)bd=1;
+      if(x>0&&op[i-1]&&!seen[i-1]){seen[i-1]=1;q[tl++]=i-1}
+      if(x<w-1&&op[i+1]&&!seen[i+1]){seen[i+1]=1;q[tl++]=i+1}
+      if(y>0&&op[i-w]&&!seen[i-w]){seen[i-w]=1;q[tl++]=i-w}
+      if(y<h-1&&op[i+w]&&!seen[i+w]){seen[i+w]=1;q[tl++]=i+w}}
+    qn=tl;const area=tl-st;if(bd||area<30||area>N/8)continue;
+    const c=fitC(q,st,tl,w,sx,sy,.16);if(c)cs.push(c)}}
 //#AN-END
 
 // ================= AR (CAMERA HOẶC KHÔNG CẦN CAMERA) =================
 const AC=document.createElement('canvas');
 function grayOf(cv){const d=cv.getContext('2d',{willReadFrequently:true}).getImageData(0,0,cv.width,cv.height).data,o=new Uint8Array(cv.width*cv.height);for(let i=0,j=0;i<o.length;i++,j+=4)o[i]=(d[j]*77+d[j+1]*150+d[j+2]*29)>>8;return o}
-function scanSrc(src,sw,sh,max=640,ds,los,crop){const s0=max/Math.max(sw,sh);let s=s0,cx=0,cy=0,cw=sw,ch=sh;if(crop){cx=crop.x;cy=crop.y;cw=crop.w;ch=crop.h;s=Math.min(1,900/Math.max(cw,ch))}   // crop = KHUNG VÀNG (toạ độ ảnh gốc)
-  AC.width=Math.round(cw*s);AC.height=Math.round(ch*s);AC.getContext('2d',{willReadFrequently:true}).drawImage(src,cx,cy,cw,ch,0,0,AC.width,AC.height);const r=analyze(grayOf(AC),AC.width,AC.height,ds,los,!!crop);let shp=0;{const g=grayOf(AC),W=AC.width,H=AC.height;let t=0,c=0;for(let y=1;y<H;y+=2)for(let x=1;x<W;x+=2){t+=Math.abs(g[y*W+x]-g[y*W+x-1])+Math.abs(g[y*W+x]-g[(y-1)*W+x]);c++}shp=t/c}
+function scanSrc(src,sw,sh,max=640,ds,los,crop,fs){const s0=max/Math.max(sw,sh);let s=s0,cx=0,cy=0,cw=sw,ch=sh;if(crop){cx=crop.x;cy=crop.y;cw=crop.w;ch=crop.h;s=Math.min(1,900/Math.max(cw,ch))}   // crop = KHUNG VÀNG (toạ độ ảnh gốc)
+  AC.width=Math.round(cw*s);AC.height=Math.round(ch*s);AC.getContext('2d',{willReadFrequently:true}).drawImage(src,cx,cy,cw,ch,0,0,AC.width,AC.height);const r=analyze(grayOf(AC),AC.width,AC.height,ds,los,!!crop,AC.getContext('2d',{willReadFrequently:true}).getImageData(0,0,AC.width,AC.height).data,fs);let shp=0;{const g=grayOf(AC),W=AC.width,H=AC.height;let t=0,c=0;for(let y=1;y<H;y+=2)for(let x=1;x<W;x+=2){t+=Math.abs(g[y*W+x]-g[y*W+x-1])+Math.abs(g[y*W+x]-g[(y-1)*W+x]);c++}shp=t/c}
   if(crop){const f=s0/s;r.C.forEach(c=>{c.x=(c.x/s+cx)*s0;c.y=(c.y/s+cy)*s0;c.r=c.r/s*s0});r.dd=Math.max(1,Math.round((r.dd||2)*f))}
   r.sh=shp;r.s=crop?s0:s;return r}
 
@@ -651,7 +708,7 @@ async function startAR(useCam){
       X.s2ok=()=>{close();accept(r,snap)};
       X.s2re=()=>{close();pend=false;stable=0;lastSig='';og.clearRect(0,0,SW,SH);drawFrame();say('🔍 Quét lại…',1500)}};
     const accept=(r,snap)=>{const vw=snap.width,vh=snap.height;const xs=r.C.flatMap(c=>[c.x-c.r,c.x+c.r]),ys=r.C.flatMap(c=>[c.y-c.r,c.y+c.r]),bw=Math.max(...xs)-Math.min(...xs),bh=Math.max(...ys)-Math.min(...ys);
-            M={dd:r.dd,lo:r.lo||0,pts:r.C.map(c=>({x:c.x,y:c.y,r:c.r})),tree:r.tr.root,sig:r.tr.sig,cx:(Math.max(...xs)+Math.min(...xs))/2,cy:(Math.max(...ys)+Math.min(...ys))/2,pxS:Math.max(bw*1.18,bh*1.18/.77,60)};
+            M={dd:r.dd,lo:r.lo||0,sm:r.sm||0,pts:r.C.map(c=>({x:c.x,y:c.y,r:c.r})),tree:r.tr.root,sig:r.tr.sig,cx:(Math.max(...xs)+Math.min(...xs))/2,cy:(Math.max(...ys)+Math.min(...ys))/2,pxS:Math.max(bw*1.18,bh*1.18/.77,60)};
             qr=1;qi=0;tx=ty=0;lost=0;mode='track';pend=false;og.clearRect(0,0,SW,SH);rig.visible=true;
             document.body.classList.remove('scan');document.body.classList.add('cfm');   // cây 3D hiện ra, chức năng CHƯA hiện cho tới khi xác nhận số
             const map=adopt(r.tr,r.C,M);locked=false;isLocked=false;document.body.classList.remove('locked');say('');ui();
@@ -659,7 +716,7 @@ async function startAR(useCam){
             readDigits(snap,r.C,1/r.s,map)};
     const step=()=>{
       const vw=vid.videoWidth,vh=vid.videoHeight;if(!vw)return;
-      const isS=mode=='scan',r=scanSrc(vid,vw,vh,640,isS?undefined:[M.dd||2],isS?undefined:[M.lo||0],isS?roiSrc(vw,vh):null),k=Math.max(SW/vw,SH/vh),a=k/r.s,ox=(SW-vw*k)/2,oy=(SH-vh*k)/2;G={a,ox,oy};
+      const isS=mode=='scan',r=scanSrc(vid,vw,vh,640,isS?undefined:[M.dd||2],isS?undefined:[M.lo||0],isS?roiSrc(vw,vh):null,isS?undefined:(M.sm?1:0)),k=Math.max(SW/vw,SH/vh),a=k/r.s,ox=(SW-vw*k)/2,oy=(SH-vh*k)/2;G={a,ox,oy};
       if(isS){
         if(pend)return;
         drawDet(r,vw,vh);
